@@ -26,9 +26,21 @@ class ScenarioStep:
     
     def validate(self) -> bool:
         """Validate step configuration."""
-        # TODO: Check required fields based on type
-        # TODO: Validate parameter values
-        raise NotImplementedError()
+        if self.type == StepType.WORKLOAD:
+            if not self.workload:
+                return False
+            # Check if it's a valid workload type
+            valid_workloads = ["ingest", "query", "shrink"]
+            if self.workload not in valid_workloads:
+                return False
+        elif self.type == StepType.WAIT:
+            if not self.wait_condition and not self.duration_seconds:
+                return False
+        elif self.type == StepType.CHECKPOINT:
+            # Checkpoints are always valid with any parameters
+            pass
+        
+        return True
 
 
 @dataclass
@@ -42,13 +54,26 @@ class Scenario:
     
     def validate(self) -> bool:
         """Validate scenario configuration."""
-        # TODO: Validate all steps
-        # TODO: Check step dependencies
-        # TODO: Verify dataset reference
-        raise NotImplementedError()
+        if not self.name or not self.description:
+            return False
+        
+        if not self.steps:
+            return False
+        
+        # Validate all steps
+        for step in self.steps:
+            if not step.validate():
+                return False
+        
+        return True
         
     def get_total_duration(self) -> Optional[float]:
         """Calculate total scenario duration if deterministic."""
-        # TODO: Sum step durations
-        # TODO: Return None if any step has no duration
-        raise NotImplementedError()
+        total = 0.0
+        for step in self.steps:
+            if step.duration_seconds is None:
+                # Can't calculate total if any step has no duration
+                return None
+            total += step.duration_seconds
+        
+        return total
