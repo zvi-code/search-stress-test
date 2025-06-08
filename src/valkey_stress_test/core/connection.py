@@ -67,10 +67,10 @@ class AsyncRedisPool:
                 decode_responses=self.config.decode_responses,
             )
             
-            # Test connectivity
-            client = await self.get_client()
-            await client.ping()
-            await client.close()
+            # Test connectivity using direct client creation
+            test_client = redis.Redis(connection_pool=self._pool)
+            await test_client.ping()
+            await test_client.close()
             
             self._initialized = True
             logger.info(f"Initialized Redis pool: {self.config.host}:{self.config.port} "

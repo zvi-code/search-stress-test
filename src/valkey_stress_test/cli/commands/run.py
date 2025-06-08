@@ -74,11 +74,15 @@ async def run_scenario_async(
     if dry_run:
         typer.echo("Dry run - scenario validation completed successfully")
         return
-    
-    # Initialize metric collector
+
+    # Initialize connection manager
+    await connection_manager.initialize()
+
+    # Initialize metric collector with Redis client from connection manager
+    redis_client = await connection_manager.get_pool().get_client()
     metric_collector = AsyncMemoryCollector(
-        connection_manager=connection_manager,
-        collection_interval=5.0
+        redis_client=redis_client,
+        interval_seconds=5.0
     )
     
     # Create scenario runner
