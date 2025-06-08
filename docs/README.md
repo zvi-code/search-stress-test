@@ -10,9 +10,9 @@ Welcome to the Valkey Memory Stress Testing Tool documentation!
 ## User Guides
 
 - **[Installation Guide](../README.md#installation)**: Detailed installation instructions
-- **[Configuration Guide](configuration.md)**: How to configure the tool (TODO)
-- **[Scenario Guide](scenarios.md)**: Creating and managing test scenarios (TODO)
-- **[Dataset Guide](datasets.md)**: Working with datasets (TODO)
+- **[Configuration Guide](CONFIGURATION.md)**: Complete configuration reference
+- **[Scenario Guide](SCENARIOS.md)**: Creating and managing test scenarios
+- **[Dataset Guide](DATASETS.md)**: Working with datasets and public data
 
 ## Technical Documentation
 
