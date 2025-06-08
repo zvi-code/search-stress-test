@@ -106,6 +106,19 @@ vst dataset download openai-5m --output ./datasets
 vst dataset info ./datasets/openai-5m.h5
 ```
 
+### 5. Run Tests
+
+```bash
+# Run unit tests (no external dependencies)
+python run_tests.py
+
+# Run with coverage report
+python run_tests.py --coverage
+
+# Quick shell script version
+./run_tests.sh
+```
+
 ## CLI Reference
 
 ### Main Commands
@@ -613,21 +626,36 @@ ruff check .
 
 ### Running Tests
 
+We provide a comprehensive test runner that handles all setup automatically:
+
 ```bash
-# Run all tests
-pytest
+# Run all unit tests (default, no Redis required)
+python run_tests.py
 
-# Run only unit tests
-pytest tests/unit/
+# Run with coverage report
+python run_tests.py --coverage
 
-# Run only integration tests
-pytest tests/integration/
+# Run integration tests (requires Redis/Valkey)
+python run_tests.py --type integration
 
-# Run with verbose output
-pytest -v
+# Quick tests only (faster)
+python run_tests.py --quick
 
-# Run specific test file
-pytest tests/unit/test_cli_commands.py
+# Verbose output with fail-fast
+python run_tests.py --verbose --failfast
+
+# Shell script alternative
+./run_tests.sh --coverage
+```
+
+See [TESTING.md](TESTING.md) for complete testing documentation.
+
+#### Direct pytest usage (advanced)
+```bash
+# If you prefer using pytest directly
+pytest tests/unit/     # Unit tests only
+pytest tests/integration/  # Integration tests
+pytest -v              # Verbose output
 ```
 
 ### Contributing
