@@ -24,6 +24,7 @@ from valkey_stress_test.core import (
 # Import mocks
 from tests.mocks import MockRedisClient, MockConnectionManager
 
+
 @pytest.mark.unit
 class TestVectorOperations:
     """Test vector operations without external dependencies."""
@@ -148,6 +149,7 @@ class TestVectorOperations:
         assert vec_ops.validate_expansion(invalid_vectors, max_norm=4.0) is False
 
 
+@pytest.mark.unit
 class TestVectorSampler:
     """Test vector sampling operations."""
     
@@ -193,6 +195,7 @@ class TestVectorSampler:
             group_deletions = sum(1 for idx in indices if idx in group_indices)
             assert 40 <= group_deletions <= 60  # Allow some variance
 
+
 @pytest.mark.unit
 class TestRecallCalculation:
     """Test recall calculation."""
@@ -228,6 +231,7 @@ class TestRecallCalculation:
         assert recall == 0.7  # Average of 1.0 and 0.4
 
 
+@pytest.mark.unit
 class TestMetricCollection:
     """Test metric collection without Redis."""
     
@@ -265,6 +269,7 @@ class TestMetricCollection:
         query_metrics = collector.get_operation_metrics("query")
         assert query_metrics.count == 1
 
+
 @pytest.mark.unit
 class TestMetricAggregation:
     """Test metric aggregation."""
@@ -299,6 +304,7 @@ class TestMetricAggregation:
         assert stats["min"] == 1.0
         assert stats["max"] == 5.0
         assert stats["p50"] == 3.0
+
 
 @pytest.mark.unit
 class TestConfiguration:
@@ -341,6 +347,7 @@ class TestConfiguration:
             "redis": {"port": 99999},  # Invalid port
         }
         assert ConfigValidator.validate(invalid_config) is False
+
 
 @pytest.mark.unit
 class TestConnectionManagement:

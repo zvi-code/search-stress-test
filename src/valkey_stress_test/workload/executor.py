@@ -228,7 +228,8 @@ class WorkloadExecutor:
         thread_config["n_clients"] = self.n_clients_per_thread
         
         # Create a thread-local copy of the workload
-        thread_workload = workload.__class__(workload.name)
+        # Use the class directly without passing name since built-in workloads don't take name as argument
+        thread_workload = workload.__class__()
         thread_workload.set_stop_event(stop_event)
         
         try:

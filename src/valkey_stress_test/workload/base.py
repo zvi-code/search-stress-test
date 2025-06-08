@@ -238,6 +238,10 @@ class BatchedWorkload(BaseWorkload):
         
     def record_batch_success(self, batch_size: int, latency_ms: Optional[float] = None) -> None:
         """Record successful batch processing."""
+        if batch_size <= 0:
+            logger.warning(f"Invalid batch size: {batch_size}. Skipping batch record.")
+            return
+            
         self._success_count += batch_size
         self._operation_count += batch_size
         self._batches_processed += 1

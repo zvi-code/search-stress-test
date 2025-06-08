@@ -222,7 +222,11 @@ class QueryWorkload(RateLimitedWorkload):
                     # Extract score from field list
                     fields = result[i + 1]
                     if fields and len(fields) >= 2:
-                        score = float(fields[1])
+                        score_value = fields[1]
+                        # Handle bytes decoding if needed
+                        if isinstance(score_value, bytes):
+                            score_value = score_value.decode()
+                        score = float(score_value)
                         distances.append(score)
                     else:
                         distances.append(0.0)

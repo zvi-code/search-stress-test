@@ -71,7 +71,7 @@ class ShrinkWorkload(BatchedWorkload):
             # Get all keys
             all_keys = await self._get_all_keys(
                 client_manager.clients[0],
-                pattern="vec:*"
+                pattern="*"
             )
             
             if not all_keys:

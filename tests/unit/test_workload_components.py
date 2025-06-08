@@ -27,6 +27,7 @@ from tests.mocks import (
     MockDataset,
 )
 
+
 @pytest.mark.unit
 class TestBaseWorkload:
     """Test base workload functionality."""
@@ -71,13 +72,22 @@ class TestBaseWorkload:
         stop_event.set()
         assert workload.should_stop()
 
+
 @pytest.mark.unit
 class TestBatchedWorkload:
     """Test batched workload functionality."""
     
+    class ConcreteBatchedWorkload(BatchedWorkload):
+        """Concrete implementation for testing."""
+        async def execute(self, connection_pool, dataset, config):
+            return self.create_result()
+        
+        def get_metrics(self):
+            return super().get_metrics()
+    
     def test_batch_success_recording(self):
         """Test recording batch operations."""
-        workload = BatchedWorkload("test_batch", batch_size=100)
+        workload = self.ConcreteBatchedWorkload("test_batch", batch_size=100)
         
         # Record a successful batch
         workload.record_batch_success(100, latency_ms=50.0)
@@ -90,14 +100,23 @@ class TestBatchedWorkload:
         assert len(workload._latencies) == 10  # Sampled 10 items
         assert all(lat == 0.5 for lat in workload._latencies)  # 50ms / 100 items
 
+
 @pytest.mark.unit
 class TestRateLimitedWorkload:
     """Test rate-limited workload functionality."""
     
+    class ConcreteRateLimitedWorkload(RateLimitedWorkload):
+        """Concrete implementation for testing."""
+        async def execute(self, connection_pool, dataset, config):
+            return self.create_result()
+        
+        def get_metrics(self):
+            return {}
+    
     @pytest.mark.asyncio
     async def test_rate_limiting(self):
         """Test rate limiting functionality."""
-        workload = RateLimitedWorkload("test_rate", target_ops_per_second=100)
+        workload = self.ConcreteRateLimitedWorkload("test_rate", target_ops_per_second=100)
         
         start_time = time.time()
         
@@ -110,6 +129,7 @@ class TestRateLimitedWorkload:
         # Should take approximately 0.1 seconds (10 ops at 100 ops/sec)
         assert 0.08 <= elapsed <= 0.15
 
+
 @pytest.mark.unit
 class TestWorkloadExecutor:
     """Test workload executor."""
@@ -119,6 +139,10 @@ class TestWorkloadExecutor:
         """Test multi-threaded workload execution."""
         # Create a simple test workload
         class TestWorkload(BaseWorkload):
+            def __init__(self, name = "test"):
+                """Initialize test workload."""
+                super().__init__(name)
+                
             async def execute(self, connection_pool, dataset, config):
                 thread_id = config.get("thread_id", 0)
                 # Each thread does 10 operations
@@ -157,6 +181,7 @@ class TestWorkloadExecutor:
         assert result.additional_metrics["threads_used"] == 2
         
         await executor.shutdown()
+
 
 @pytest.mark.unit
 class TestIngestWorkload:
@@ -204,6 +229,7 @@ class TestIngestWorkload:
         deserialized = struct.unpack('<3f', serialized)
         assert np.allclose(deserialized, vector)
 
+
 @pytest.mark.unit
 class TestQueryWorkload:
     """Test query workload."""
@@ -211,12 +237,30 @@ class TestQueryWorkload:
     @pytest.mark.asyncio
     async def test_query_execution(self):
         """Test query execution."""
-        workload = QueryWorkload()
+         # Setup
+        workload = IngestWorkload()
         pool = MockAsyncRedisPool(Mock())
         await pool.initialize()
         
         dataset = MockDataset(n_vectors=100, dimensions=10)
         
+        config = {
+            "batch_size": 10,
+            "target_vectors": 50,
+            "index_name": "test_index",
+            "dimensions": 10,
+            "n_clients": 5,
+        }
+        
+        # Execute
+        result = await workload.execute(pool, dataset, config)
+        
+        # Check results
+        assert result.success_count > 0
+        assert result.additional_metrics["vectors_inserted"] == 50
+        assert result.additional_metrics["batches_processed"] == 5
+        workload = QueryWorkload()
+                
         config = {
             "query_k": 5,
             "ef_runtime": 100,
@@ -264,6 +308,7 @@ class TestQueryWorkload:
         assert "recall_min" in metrics
         assert "recall_max" in metrics
 
+
 @pytest.mark.unit
 class TestShrinkWorkload:
     """Test shrink workload."""
@@ -271,14 +316,39 @@ class TestShrinkWorkload:
     @pytest.mark.asyncio
     async def test_deletion_execution(self):
         """Test deletion workload execution."""
-        workload = ShrinkWorkload()
+        # Setup
+        workload = IngestWorkload()
         pool = MockAsyncRedisPool(Mock())
         await pool.initialize()
         
+        dataset = MockDataset(n_vectors=100, dimensions=10)
+        
+        config = {
+            "batch_size": 10,
+            "target_vectors": 50,
+            "index_name": "test_index",
+            "dimensions": 10,
+            "n_clients": 5,
+        }
+        
+        # Execute
+        result = await workload.execute(pool, dataset, config)
+        
+        # Check results
+        assert result.success_count > 0
+        assert result.additional_metrics["vectors_inserted"] == 50
+        assert result.additional_metrics["batches_processed"] == 5
+        workload = ShrinkWorkload()
+        # pool = MockAsyncRedisPool(Mock())
+        # await pool.initialize()
+        
         # Prepare mock client with keys
         client = await pool.get_client()
-        for i in range(100):
-            await client.hset(f"vec:train_{i}", "vector", b"data")
+        # # Add keys to both data and hash_data to ensure they're found
+        # for i in range(100):
+        #     key = f"train_{i}"
+        #     await client.hset(key, "vector", b"data")
+        #     client.data[key] = b"data"  # Also add to regular data dict
         
         config = {
             "shrink_ratio": 0.3,
@@ -290,28 +360,30 @@ class TestShrinkWorkload:
         # Execute
         result = await workload.execute(pool, MockDataset(), config)
         
-        # Check results
-        assert result.success_count > 0
+        # Check results - should have deleted some vectors
+        assert result.success_count >= 10  # At least 10 deletions (allowing for some variance)
         assert "vectors_deleted" in result.additional_metrics
-        
+        assert result.additional_metrics["vectors_deleted"] >= 10
+
     def test_key_filtering(self):
         """Test key filtering with exclusion patterns."""
         workload = ShrinkWorkload()
         
         keys = [
-            "vec:train_1",
-            "vec:expand_1_train_2",
-            "vec:test_3",
-            "vec:expand_2_train_4"
+            "train_1",
+            "expand_1_train_2",
+            "test_3",
+            "expand_2_train_4"
         ]
         
         # Exclude expanded vectors
         filtered = workload._filter_keys(keys, ["expand_"])
-        assert filtered == ["vec:train_1", "vec:test_3"]
+        assert filtered == ["train_1", "test_3"]
         
         # Exclude test vectors
         filtered = workload._filter_keys(keys, ["test_"])
         assert len(filtered) == 3
+
 
 @pytest.mark.unit
 class TestWorkloadRegistry:
@@ -325,6 +397,9 @@ class TestWorkloadRegistry:
         # Register a test workload
         @register_workload("test_workload", "A test workload")
         class TestWorkload(BaseWorkload):
+            def __init__(self):
+                super().__init__("test_workload")
+                
             async def execute(self, connection_pool, dataset, config):
                 return self.create_result()
             
@@ -360,6 +435,7 @@ class TestWorkloadRegistry:
         assert "ingest" in workload_names
         assert "query" in workload_names
         assert "shrink" in workload_names
+
 
 @pytest.mark.unit
 class TestWorkloadIntegration:
