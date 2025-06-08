@@ -84,9 +84,12 @@ class ScenarioRunner:
                     
                     # Record metrics
                     if csv_exporter and self.metric_collector:
-                        latest_memory = self.metric_collector.get_latest_metric()
-                        if latest_memory:
-                            csv_exporter.write_memory_metrics(latest_memory, f"step_{i+1}_{step.name}")
+                        try:
+                            latest_memory = self.metric_collector.get_latest_metric()
+                            if latest_memory:
+                                csv_exporter.write_memory_metrics(latest_memory, f"step_{i+1}_{step.name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to record metrics for step {step.name}: {e}")
                             
                     logger.info(f"Step {step.name} completed successfully")
                     
@@ -377,6 +380,10 @@ class ScenarioRunner:
                 ops = step_result.get('operations_per_second', 0)
                 success = step_result.get('success_count', 0)
                 lines.append(f"           → {success} operations, {ops:.1f} ops/sec")
+            
+            # Include error message for failed steps
+            if step_result.get('status') == 'failed' and 'error' in step_result:
+                lines.append(f"           → Error: {step_result['error']}")
                 
         lines.append("")
         

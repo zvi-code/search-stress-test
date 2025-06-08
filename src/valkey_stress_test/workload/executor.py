@@ -26,6 +26,7 @@ class ThreadResult:
     latencies: List[float]
     errors: List[str]
     elapsed_time: float
+    additional_metrics: Dict[str, Any]
 
 
 class WorkloadExecutor:
@@ -187,7 +188,8 @@ class WorkloadExecutor:
                 failure_count=0,
                 latencies=[],
                 errors=[str(e)],
-                elapsed_time=0.0
+                elapsed_time=0.0,
+                additional_metrics={}
             )
         finally:
             loop.close()
@@ -259,7 +261,8 @@ class WorkloadExecutor:
             failure_count=failure_count,
             latencies=latencies,
             errors=errors,
-            elapsed_time=elapsed_time
+            elapsed_time=elapsed_time,
+            additional_metrics=result.additional_metrics
         )
     
     def _aggregate_results(self, 
@@ -302,11 +305,27 @@ class WorkloadExecutor:
                 "p99": float(np.percentile(sorted_latencies, 99)),
             }
         
-        # Additional metrics
+        # Merge additional metrics from all threads
+        all_additional_metrics = {}
+        for result in thread_results:
+            for key, value in result.additional_metrics.items():
+                if key in all_additional_metrics:
+                    # Sum numeric values, concatenate strings
+                    if isinstance(value, (int, float)) and isinstance(all_additional_metrics[key], (int, float)):
+                        all_additional_metrics[key] += value
+                    else:
+                        all_additional_metrics[key] = value  # Keep last value for non-numeric
+                else:
+                    all_additional_metrics[key] = value
+        
+        # Additional standard metrics
         additional_metrics = {
             "threads_used": len(thread_results),
             "avg_ops_per_thread": total_operations / len(thread_results) if thread_results else 0,
         }
+        
+        # Merge with thread-specific metrics
+        additional_metrics.update(all_additional_metrics)
         
         return WorkloadResult(
             success_count=total_success,

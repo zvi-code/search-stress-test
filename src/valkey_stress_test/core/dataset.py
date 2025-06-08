@@ -11,7 +11,7 @@ from __future__ import annotations
 import h5py
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Generator
 from dataclasses import dataclass
 import logging
 
@@ -142,29 +142,47 @@ class Dataset:
         logger.info(f"Maximum L2 norm in dataset: {self._max_norm:.4f}")
                 
     def get_train_vectors(self, 
-                         indices: Optional[List[int]] = None,
-                         batch_size: Optional[int] = None) -> np.ndarray:
+                         indices: Optional[List[int]] = None) -> np.ndarray:
         """
-        Get training vectors, optionally by indices or in batches.
+        Get training vectors, optionally by indices.
         
         Args:
             indices: Specific indices to retrieve. If None, returns all.
-            batch_size: If provided, returns vectors in batches
             
         Returns:
             numpy array of shape (n, dimensions) containing vectors
         """
+        if self._train_vectors is None:
+            raise RuntimeError("Dataset not loaded. Call load() first.")
+            
+        if indices is not None:
+            return self._train_vectors[indices]
+        else:
+            return self._train_vectors
+    
+    def get_train_vectors_batched(self, 
+                                 batch_size: int,
+                                 indices: Optional[List[int]] = None):
+        """
+        Get training vectors in batches.
+        
+        Args:
+            batch_size: Size of each batch
+            indices: Specific indices to retrieve. If None, returns all.
+            
+        Yields:
+            numpy arrays of shape (batch_size, dimensions) containing vectors
+        """
+        if self._train_vectors is None:
+            raise RuntimeError("Dataset not loaded. Call load() first.")
+            
         if indices is not None:
             vectors = self._train_vectors[indices]
         else:
             vectors = self._train_vectors
 
-        if batch_size is not None:
-            # Yield batches of vectors
-            for i in range(0, len(vectors), batch_size):
-                yield vectors[i:i + batch_size]
-        else:
-            return vectors
+        for i in range(0, len(vectors), batch_size):
+            yield vectors[i:i + batch_size]
         
         
     def get_test_vectors(self, 
@@ -260,7 +278,7 @@ class Dataset:
         
     def iterate_batches(self, 
                        batch_size: int = 1000,
-                       shuffle: bool = False) -> Tuple[np.ndarray, List[str]]:
+                       shuffle: bool = False) -> Generator[Tuple[np.ndarray, List[str]], None, None]:
         """
         Iterate over dataset in batches.
         

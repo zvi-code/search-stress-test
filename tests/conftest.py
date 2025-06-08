@@ -2,6 +2,7 @@
 """Pytest configuration and shared fixtures."""
 
 import pytest
+import pytest_asyncio
 import asyncio
 import numpy as np
 from pathlib import Path
@@ -37,7 +38,7 @@ def mock_redis_client():
     return MockRedisClient()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_connection_pool():
     """Provide a mock connection pool."""
     config = Mock()
@@ -47,7 +48,7 @@ async def mock_connection_pool():
     await pool.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_connection_manager():
     """Provide a mock connection manager."""
     config = ConnectionConfig()
@@ -96,6 +97,12 @@ def sample_dataset_file(tmp_path):
         f.create_dataset('neighbors', data=neighbors)
     
     return dataset_path
+
+
+@pytest.fixture
+def sample_dataset_path(sample_dataset_file):
+    """Provide the path to the sample dataset (alias for sample_dataset_file)."""
+    return sample_dataset_file
 
 
 @pytest.fixture

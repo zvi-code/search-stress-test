@@ -226,7 +226,10 @@ class MetricCollector:
     def get_memory_summary(self) -> Dict[str, Any]:
         """Get summary of memory metrics."""
         if not self.memory_metrics:
-            return {}
+            return {
+                "samples": 0,
+                "duration_seconds": 0,
+            }
         
         # Extract time series
         timestamps = [m.timestamp for m in self.memory_metrics]
