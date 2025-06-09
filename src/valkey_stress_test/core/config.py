@@ -133,6 +133,115 @@ class OutputConfig:
             raise ValueError(f"Invalid log level: {self.log_level}")
 
 
+@dataclass
+class S3Config:
+    """S3 configuration for dataset storage."""
+    bucket_name: str = "vss-datasets"
+    region: str = "us-east-1"
+    
+    # AWS credentials (usually from environment/IAM)
+    access_key_id: Optional[str] = None
+    secret_access_key: Optional[str] = None
+    session_token: Optional[str] = None
+    
+    # Upload settings
+    multipart_threshold: int = 64 * 1024 * 1024  # 64MB
+    max_concurrency: int = 10
+    multipart_chunksize: int = 64 * 1024 * 1024  # 64MB
+    
+    # Download settings
+    download_threads: int = 4
+    
+    # Retry settings
+    max_retries: int = 3
+    retry_delay: float = 1.0
+    
+    def validate(self) -> None:
+        """Validate S3 configuration."""
+        if not self.bucket_name:
+            raise ValueError("S3 bucket name cannot be empty")
+        
+        if not self.region:
+            raise ValueError("S3 region cannot be empty")
+        
+        if self.multipart_threshold <= 0:
+            raise ValueError(f"multipart_threshold must be positive: {self.multipart_threshold}")
+        
+        if self.max_concurrency <= 0:
+            raise ValueError(f"max_concurrency must be positive: {self.max_concurrency}")
+        
+        if self.download_threads <= 0:
+            raise ValueError(f"download_threads must be positive: {self.download_threads}")
+
+
+@dataclass
+class DatasetPrepConfig:
+    """Dataset preparation configuration."""
+    # Default compression and processing settings
+    default_compression: str = "zstd"
+    default_block_size: int = 1000
+    
+    # RDB generation settings
+    valkey_host: str = "localhost"
+    valkey_port: int = 6379
+    valkey_password: Optional[str] = None
+    memory_limit_gb: Optional[float] = None
+    batch_size: int = 1000
+    
+    # Index creation defaults
+    create_index_by_default: bool = True
+    default_index_algorithm: str = "HNSW"
+    default_distance_metric: str = "COSINE"
+    default_hnsw_m: int = 16
+    default_hnsw_ef_construction: int = 200
+    
+    # Processing limits and timeouts
+    max_vector_dimensions: int = 4096
+    max_dataset_size_gb: float = 1000.0
+    processing_timeout_minutes: int = 480  # 8 hours
+    
+    def validate(self) -> None:
+        """Validate dataset preparation configuration."""
+        if self.default_compression not in ["none", "zstd", "lz4"]:
+            raise ValueError(f"Invalid compression type: {self.default_compression}")
+        
+        if self.default_block_size <= 0:
+            raise ValueError(f"default_block_size must be positive: {self.default_block_size}")
+        
+        if not self.valkey_host:
+            raise ValueError("Valkey host cannot be empty")
+        
+        if not 1 <= self.valkey_port <= 65535:
+            raise ValueError(f"Invalid Valkey port: {self.valkey_port}")
+        
+        if self.memory_limit_gb is not None and self.memory_limit_gb <= 0:
+            raise ValueError(f"memory_limit_gb must be positive: {self.memory_limit_gb}")
+        
+        if self.batch_size <= 0:
+            raise ValueError(f"batch_size must be positive: {self.batch_size}")
+        
+        if self.default_index_algorithm not in ["HNSW", "FLAT"]:
+            raise ValueError(f"Invalid index algorithm: {self.default_index_algorithm}")
+        
+        if self.default_distance_metric not in ["L2", "IP", "COSINE"]:
+            raise ValueError(f"Invalid distance metric: {self.default_distance_metric}")
+        
+        if not 1 <= self.default_hnsw_m <= 512:
+            raise ValueError(f"default_hnsw_m must be between 1 and 512: {self.default_hnsw_m}")
+        
+        if not 1 <= self.default_hnsw_ef_construction <= 4096:
+            raise ValueError(f"default_hnsw_ef_construction must be between 1 and 4096: {self.default_hnsw_ef_construction}")
+        
+        if self.max_vector_dimensions <= 0:
+            raise ValueError(f"max_vector_dimensions must be positive: {self.max_vector_dimensions}")
+        
+        if self.max_dataset_size_gb <= 0:
+            raise ValueError(f"max_dataset_size_gb must be positive: {self.max_dataset_size_gb}")
+        
+        if self.processing_timeout_minutes <= 0:
+            raise ValueError(f"processing_timeout_minutes must be positive: {self.processing_timeout_minutes}")
+
+
 class Config:
     """Main configuration container."""
     
@@ -147,10 +256,19 @@ class Config:
         self.workload = WorkloadConfig()
         self.monitoring = MonitoringConfig()
         self.output = OutputConfig()
+        self.s3 = S3Config()
+        self.dataset_prep = DatasetPrepConfig()
+        
+        # Always merge environment variables
+        self._merge_env_vars()
+        self._update_from_dict()
         
         # Load from file if provided
         if config_path:
             self.load()
+        else:
+            # Validate even when no config file is provided
+            self.validate()
     
     def load(self) -> None:
         """Load configuration from file."""
@@ -202,6 +320,42 @@ class Config:
         
         if "VST_LOG_LEVEL" in os.environ:
             self.data.setdefault("output", {})["log_level"] = os.environ["VST_LOG_LEVEL"]
+        
+        # S3 configuration from environment
+        if "AWS_S3_BUCKET" in os.environ:
+            self.data.setdefault("s3", {})["bucket_name"] = os.environ["AWS_S3_BUCKET"]
+        if "AWS_DEFAULT_REGION" in os.environ:
+            self.data.setdefault("s3", {})["region"] = os.environ["AWS_DEFAULT_REGION"]
+        if "AWS_ACCESS_KEY_ID" in os.environ:
+            self.data.setdefault("s3", {})["access_key_id"] = os.environ["AWS_ACCESS_KEY_ID"]
+        if "AWS_SECRET_ACCESS_KEY" in os.environ:
+            self.data.setdefault("s3", {})["secret_access_key"] = os.environ["AWS_SECRET_ACCESS_KEY"]
+        if "AWS_SESSION_TOKEN" in os.environ:
+            self.data.setdefault("s3", {})["session_token"] = os.environ["AWS_SESSION_TOKEN"]
+        
+        # S3 performance settings from environment
+        if "VST_S3_MULTIPART_THRESHOLD" in os.environ:
+            self.data.setdefault("s3", {})["multipart_threshold"] = int(os.environ["VST_S3_MULTIPART_THRESHOLD"])
+        if "VST_S3_MAX_CONCURRENCY" in os.environ:
+            self.data.setdefault("s3", {})["max_concurrency"] = int(os.environ["VST_S3_MAX_CONCURRENCY"])
+        if "VST_S3_DOWNLOAD_THREADS" in os.environ:
+            self.data.setdefault("s3", {})["download_threads"] = int(os.environ["VST_S3_DOWNLOAD_THREADS"])
+        
+        # Dataset preparation configuration from environment
+        if "VST_VALKEY_HOST" in os.environ:
+            self.data.setdefault("dataset_prep", {})["valkey_host"] = os.environ["VST_VALKEY_HOST"]
+        if "VST_VALKEY_PORT" in os.environ:
+            self.data.setdefault("dataset_prep", {})["valkey_port"] = int(os.environ["VST_VALKEY_PORT"])
+        if "VST_VALKEY_PASSWORD" in os.environ:
+            self.data.setdefault("dataset_prep", {})["valkey_password"] = os.environ["VST_VALKEY_PASSWORD"]
+        if "VST_MEMORY_LIMIT_GB" in os.environ:
+            self.data.setdefault("dataset_prep", {})["memory_limit_gb"] = float(os.environ["VST_MEMORY_LIMIT_GB"])
+        if "VST_DEFAULT_COMPRESSION" in os.environ:
+            self.data.setdefault("dataset_prep", {})["default_compression"] = os.environ["VST_DEFAULT_COMPRESSION"]
+        if "VST_DATASET_BATCH_SIZE" in os.environ:
+            self.data.setdefault("dataset_prep", {})["batch_size"] = int(os.environ["VST_DATASET_BATCH_SIZE"])
+        if "VST_PROCESSING_TIMEOUT_MINUTES" in os.environ:
+            self.data.setdefault("dataset_prep", {})["processing_timeout_minutes"] = int(os.environ["VST_PROCESSING_TIMEOUT_MINUTES"])
     
     def _update_from_dict(self) -> None:
         """Update configuration objects from loaded data."""
@@ -260,6 +414,44 @@ class Config:
                 summary_path=Path(output_data.get("summary_path", str(self.output.summary_path))),
                 log_level=output_data.get("log_level", self.output.log_level),
             )
+        
+        # Update S3 config
+        if "s3" in self.data:
+            s3_data = self.data["s3"]
+            self.s3 = S3Config(
+                bucket_name=s3_data.get("bucket_name", self.s3.bucket_name),
+                region=s3_data.get("region", self.s3.region),
+                access_key_id=s3_data.get("access_key_id", self.s3.access_key_id),
+                secret_access_key=s3_data.get("secret_access_key", self.s3.secret_access_key),
+                session_token=s3_data.get("session_token", self.s3.session_token),
+                multipart_threshold=s3_data.get("multipart_threshold", self.s3.multipart_threshold),
+                max_concurrency=s3_data.get("max_concurrency", self.s3.max_concurrency),
+                multipart_chunksize=s3_data.get("multipart_chunksize", self.s3.multipart_chunksize),
+                download_threads=s3_data.get("download_threads", self.s3.download_threads),
+                max_retries=s3_data.get("max_retries", self.s3.max_retries),
+                retry_delay=s3_data.get("retry_delay", self.s3.retry_delay),
+            )
+        
+        # Update DatasetPrep config
+        if "dataset_prep" in self.data:
+            dataset_prep_data = self.data["dataset_prep"]
+            self.dataset_prep = DatasetPrepConfig(
+                default_compression=dataset_prep_data.get("default_compression", self.dataset_prep.default_compression),
+                default_block_size=dataset_prep_data.get("default_block_size", self.dataset_prep.default_block_size),
+                valkey_host=dataset_prep_data.get("valkey_host", self.dataset_prep.valkey_host),
+                valkey_port=dataset_prep_data.get("valkey_port", self.dataset_prep.valkey_port),
+                valkey_password=dataset_prep_data.get("valkey_password", self.dataset_prep.valkey_password),
+                memory_limit_gb=dataset_prep_data.get("memory_limit_gb", self.dataset_prep.memory_limit_gb),
+                batch_size=dataset_prep_data.get("batch_size", self.dataset_prep.batch_size),
+                create_index_by_default=dataset_prep_data.get("create_index_by_default", self.dataset_prep.create_index_by_default),
+                default_index_algorithm=dataset_prep_data.get("default_index_algorithm", self.dataset_prep.default_index_algorithm),
+                default_distance_metric=dataset_prep_data.get("default_distance_metric", self.dataset_prep.default_distance_metric),
+                default_hnsw_m=dataset_prep_data.get("default_hnsw_m", self.dataset_prep.default_hnsw_m),
+                default_hnsw_ef_construction=dataset_prep_data.get("default_hnsw_ef_construction", self.dataset_prep.default_hnsw_ef_construction),
+                max_vector_dimensions=dataset_prep_data.get("max_vector_dimensions", self.dataset_prep.max_vector_dimensions),
+                max_dataset_size_gb=dataset_prep_data.get("max_dataset_size_gb", self.dataset_prep.max_dataset_size_gb),
+                processing_timeout_minutes=dataset_prep_data.get("processing_timeout_minutes", self.dataset_prep.processing_timeout_minutes),
+            )
     
     def validate(self) -> None:
         """Validate all configuration sections."""
@@ -269,6 +461,8 @@ class Config:
             self.workload.validate()
             self.monitoring.validate()
             self.output.validate()
+            self.s3.validate()
+            self.dataset_prep.validate()
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")
             raise
@@ -292,6 +486,14 @@ class Config:
     def get_output_config(self) -> OutputConfig:
         """Get output configuration."""
         return self.output
+    
+    def get_s3_config(self) -> S3Config:
+        """Get S3 configuration."""
+        return self.s3
+    
+    def get_dataset_prep_config(self) -> DatasetPrepConfig:
+        """Get dataset preparation configuration."""
+        return self.dataset_prep
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
@@ -326,6 +528,36 @@ class Config:
                 "csv_path": str(self.output.csv_path),
                 "summary_path": str(self.output.summary_path),
                 "log_level": self.output.log_level,
+            },
+            "s3": {
+                "bucket_name": self.s3.bucket_name,
+                "region": self.s3.region,
+                "access_key_id": self.s3.access_key_id,
+                "secret_access_key": self.s3.secret_access_key,
+                "session_token": self.s3.session_token,
+                "multipart_threshold": self.s3.multipart_threshold,
+                "max_concurrency": self.s3.max_concurrency,
+                "multipart_chunksize": self.s3.multipart_chunksize,
+                "download_threads": self.s3.download_threads,
+                "max_retries": self.s3.max_retries,
+                "retry_delay": self.s3.retry_delay,
+            },
+            "dataset_prep": {
+                "default_compression": self.dataset_prep.default_compression,
+                "default_block_size": self.dataset_prep.default_block_size,
+                "valkey_host": self.dataset_prep.valkey_host,
+                "valkey_port": self.dataset_prep.valkey_port,
+                "valkey_password": self.dataset_prep.valkey_password,
+                "memory_limit_gb": self.dataset_prep.memory_limit_gb,
+                "batch_size": self.dataset_prep.batch_size,
+                "create_index_by_default": self.dataset_prep.create_index_by_default,
+                "default_index_algorithm": self.dataset_prep.default_index_algorithm,
+                "default_distance_metric": self.dataset_prep.default_distance_metric,
+                "default_hnsw_m": self.dataset_prep.default_hnsw_m,
+                "default_hnsw_ef_construction": self.dataset_prep.default_hnsw_ef_construction,
+                "max_vector_dimensions": self.dataset_prep.max_vector_dimensions,
+                "max_dataset_size_gb": self.dataset_prep.max_dataset_size_gb,
+                "processing_timeout_minutes": self.dataset_prep.processing_timeout_minutes,
             },
         }
 

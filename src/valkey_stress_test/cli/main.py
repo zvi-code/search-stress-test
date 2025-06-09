@@ -24,6 +24,7 @@ app.add_typer(commands.dataset.app, name="dataset", help="Dataset management")
 app.add_typer(commands.validate.app, name="validate", help="Validate configurations")
 app.add_typer(commands.info.app, name="info", help="Display system information")
 app.add_typer(commands.visualize.app, name="visualize", help="Generate visualizations from scenario data")
+app.add_typer(commands.prep.prep_app, name="prep", help="Dataset preparation and S3 management")
 
 
 def _configure_logging(verbose: bool, quiet: bool) -> None:
