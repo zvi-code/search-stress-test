@@ -21,18 +21,25 @@ echo "Current Python version: $current_python"
 install_with_pyenv() {
     echo "📦 Installing Python 3.10+ with pyenv..."
     
-    # Install dependencies
+    # Install dependencies - more comprehensive for Amazon Linux 2
     sudo yum groupinstall "Development Tools" -y
-    sudo yum install git gcc openssl-devel libffi-devel bzip2-devel readline-devel sqlite-devel -y
+    sudo yum install -y git gcc openssl-devel libffi-devel bzip2-devel readline-devel sqlite-devel \
+        zlib-devel ncurses-devel tk-devel gdbm-devel db4-devel libpcap-devel xz-devel expat-devel
     
     # Install pyenv
     if ! command -v pyenv &> /dev/null; then
         curl https://pyenv.run | bash
         
-        # Add to bashrc
-        echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-        echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-        echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+        # Add to bashrc and zshrc (support both shells)
+        for rcfile in ~/.bashrc ~/.zshrc; do
+            if [[ -f "$rcfile" ]]; then
+                if ! grep -q "pyenv" "$rcfile"; then
+                    echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> "$rcfile"
+                    echo 'eval "$(pyenv init -)"' >> "$rcfile"
+                    echo 'eval "$(pyenv virtualenv-init -)"' >> "$rcfile"
+                fi
+            fi
+        done
         
         # Load pyenv for current session
         export PATH="$HOME/.pyenv/bin:$PATH"
@@ -40,27 +47,58 @@ install_with_pyenv() {
         eval "$(pyenv virtualenv-init -)"
     fi
     
-    # Install Python 3.10.14
+    # Set environment variables for SSL compilation
+    export LDFLAGS="-L/usr/lib64/openssl -L/usr/lib64"
+    export CPPFLAGS="-I/usr/include/openssl"
+    export PKG_CONFIG_PATH="/usr/lib64/pkgconfig"
+    
+    # Configure Python build with SSL support
+    export PYTHON_CONFIGURE_OPTS="--enable-shared --enable-optimizations --with-openssl=/usr"
+    
+    echo "🔧 Installing Python 3.10.14 with SSL support..."
     pyenv install 3.10.14
     pyenv global 3.10.14
     
-    echo "✓ Python 3.10.14 installed via pyenv"
+    # Verify SSL is working
+    if ~/.pyenv/versions/3.10.14/bin/python -c "import ssl; print('SSL support verified')" 2>/dev/null; then
+        echo "✓ Python 3.10.14 installed via pyenv with SSL support"
+    else
+        echo "❌ Python installed but SSL module not working. Trying alternative approach..."
+        # Try installing with different OpenSSL paths
+        export PYTHON_CONFIGURE_OPTS="--enable-shared --with-openssl=/usr --with-openssl-rpath=auto"
+        pyenv uninstall -f 3.10.14
+        pyenv install 3.10.14
+        pyenv global 3.10.14
+        
+        if ~/.pyenv/versions/3.10.14/bin/python -c "import ssl; print('SSL support verified')" 2>/dev/null; then
+            echo "✓ Python 3.10.14 installed via pyenv with SSL support (second attempt)"
+        else
+            echo "❌ SSL compilation still failing. Consider using Docker or system Python approach."
+            return 1
+        fi
+    fi
 }
 
 # Function to install via compilation
 install_with_compile() {
     echo "📦 Installing Python 3.10+ from source..."
     
-    # Install dependencies
+    # Install dependencies - comprehensive for Amazon Linux 2
     sudo yum groupinstall "Development Tools" -y
-    sudo yum install openssl-devel libffi-devel bzip2-devel readline-devel sqlite-devel -y
+    sudo yum install -y openssl-devel libffi-devel bzip2-devel readline-devel sqlite-devel \
+        zlib-devel ncurses-devel tk-devel gdbm-devel db4-devel libpcap-devel xz-devel expat-devel
     
     # Download and compile Python 3.10
     cd /tmp
     wget https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tgz
     tar xvf Python-3.10.14.tgz
     cd Python-3.10.14
-    ./configure --enable-optimizations --prefix=/usr/local
+    
+    # Configure with SSL support
+    export LDFLAGS="-L/usr/lib64/openssl -L/usr/lib64"
+    export CPPFLAGS="-I/usr/include/openssl"
+    ./configure --enable-optimizations --prefix=/usr/local --with-openssl=/usr --enable-shared
+    
     make -j $(nproc)
     sudo make altinstall
     
@@ -68,7 +106,16 @@ install_with_compile() {
     sudo ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
     sudo ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
     
-    echo "✓ Python 3.10.14 compiled and installed"
+    # Update shared library cache
+    sudo ldconfig
+    
+    # Verify SSL is working
+    if /usr/local/bin/python3.10 -c "import ssl; print('SSL support verified')" 2>/dev/null; then
+        echo "✓ Python 3.10.14 compiled and installed with SSL support"
+    else
+        echo "❌ Python installed but SSL module not working"
+        return 1
+    fi
 }
 
 # Check if Python 3.10+ is already available
@@ -81,22 +128,59 @@ else
     echo "Choose installation method:"
     echo "1) pyenv (recommended, easy to manage multiple versions)"
     echo "2) compile from source (system-wide installation)"
-    echo "3) exit and use Docker instead"
+    echo "3) try Amazon Linux Extras (if available)"
+    echo "4) exit and use Docker instead"
     echo ""
-    read -p "Enter choice (1-3): " choice
+    read -p "Enter choice (1-4): " choice
     
     case $choice in
         1)
-            install_with_pyenv
-            python_cmd="python"
+            if install_with_pyenv; then
+                python_cmd="python"
+            else
+                echo "❌ pyenv installation failed. Try option 2 or 4."
+                exit 1
+            fi
             ;;
         2)
-            install_with_compile
-            python_cmd="python3"
+            if install_with_compile; then
+                python_cmd="python3"
+            else
+                echo "❌ Source compilation failed. Try option 4 (Docker)."
+                exit 1
+            fi
             ;;
         3)
+            echo "📦 Trying Amazon Linux Extras..."
+            # Check if amazon-linux-extras is available
+            if command -v amazon-linux-extras &> /dev/null; then
+                # Install Python 3.8 first, then use pip to get newer versions
+                sudo amazon-linux-extras install python3.8 -y
+                sudo yum install python38-devel -y
+                
+                # Use python3.8 to install a newer Python
+                echo "⚠️  Amazon Linux Extras only provides Python 3.8. Consider using pyenv or Docker for 3.10+."
+                echo "Falling back to pyenv installation..."
+                if install_with_pyenv; then
+                    python_cmd="python"
+                else
+                    echo "❌ Fallback installation failed. Use Docker (option 4)."
+                    exit 1
+                fi
+            else
+                echo "❌ Amazon Linux Extras not available. Falling back to pyenv..."
+                if install_with_pyenv; then
+                    python_cmd="python"
+                else
+                    echo "❌ Fallback installation failed. Use Docker (option 4)."
+                    exit 1
+                fi
+            fi
+            ;;
+        4)
             echo "To use Docker instead:"
             echo "docker run -it --rm -v \$(pwd):/workspace python:3.10-slim bash"
+            echo "# Inside container: cd /workspace && pip install -r requirements.txt && pip install -e ."
             exit 0
             ;;
         *)
