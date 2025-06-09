@@ -67,8 +67,6 @@ class DatasetPreparer:
             self.logger.info(f"Preparation completed in {total_time:.1f}s, "
                            f"{self.stats['total_files_created']} files created, "
                            f"{self.stats['total_bytes_processed'] / (1024**3):.2f} GB processed")
-            shutil.rmtree(self.temp_dir)
-        await self.s3_manager.__aexit__(exc_type, exc_val, exc_tb)
     
     async def prepare_dataset(self, dataset_name: str,
                             source_path: Path,
@@ -151,27 +149,27 @@ class DatasetPreparer:
         
         # Convert source to VKV format
         try:
-            conversion_result = await self.converter.convert_dataset(
+            # Create output file path
+            output_file = vkv_dir / f"{dataset_name}.vkv"
+            conversion_result = self.converter.convert_to_vkv(
                 source_path=source_path,
-                output_dir=vkv_dir,
-                source_format=source_format,
-                compression=CompressionType.ZSTD,
+                output_path=output_file,
                 dataset_name=dataset_name,
+                format_hint=source_format,
+                compression=CompressionType.ZSTD,
                 **kwargs
             )
-            
-            if not conversion_result.get('success', False):
-                raise RuntimeError(f"Conversion failed: {conversion_result.get('error', 'Unknown error')}")
+            # The convert_to_vkv method returns metadata, not success/error structure
+            # Check if the output file was created successfully
+            if not output_file.exists():
+                raise RuntimeError(f"Conversion failed: output file not created at {output_file}")
             
             # Collect generated VKV files
-            output_files = conversion_result.get('output_files', {})
-            for component, file_path in output_files.items():
-                if file_path and Path(file_path).exists():
-                    vkv_files[component] = Path(file_path)
-                    self.stats['total_files_created'] += 1
-                    self.stats['total_bytes_processed'] += Path(file_path).stat().st_size
+            vkv_files['main'] = output_file
+            self.stats['total_files_created'] += 1
+            self.stats['total_bytes_processed'] += output_file.stat().st_size
             
-            self.logger.info(f"Generated {len(vkv_files)} VKV files: {list(vkv_files.keys())}")
+            self.logger.info(f"Generated VKV file: {output_file} ({conversion_result.get('vectors_converted', 0)} vectors)")
             
             return vkv_files
             

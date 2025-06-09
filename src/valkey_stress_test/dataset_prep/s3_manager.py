@@ -147,6 +147,26 @@ class S3DatasetManager:
         if self.s3_client:
             # boto3 client cleanup is automatic
             pass
+
+    async def __aenter__(self):
+        """Async context manager entry - validate S3 client and bucket access."""
+        try:
+            # Test bucket access and permissions
+            self.s3_client.head_bucket(Bucket=self.config.bucket_name)
+            self.logger.info(f"Successfully connected to bucket: {self.config.bucket_name}")
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                self.logger.info(f"Bucket {self.config.bucket_name} does not exist, will create it")
+            else:
+                self.logger.error(f"Cannot access bucket {self.config.bucket_name}: {e}")
+                raise
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - cleanup resources."""
+        # No specific cleanup needed for S3 client
+        pass
     
     async def create_bucket_if_not_exists(self) -> bool:
         """Create S3 bucket if it doesn't exist."""
@@ -477,7 +497,7 @@ class S3DatasetManager:
         finally:
             loop.close()
     
-    def list_datasets(self) -> List[Dict[str, Any]]:
+    def list_datasets(self):
         """List all available datasets in bucket."""
         try:
             # List objects with dataset prefix pattern

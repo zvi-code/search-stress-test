@@ -368,50 +368,56 @@ async def _run_preparation(dataset_name: str, source_path: Path,
                          compression: str, block_size: int, force: bool):
     """Run the dataset preparation pipeline."""
     try:
-        # Create DatasetPreparer
-        preparer = DatasetPreparer(
-            s3_config=s3_config,
-            rdb_config=rdb_config
-        )
-        
         # Parse source format
         source_fmt = None
         if source_format:
             source_fmt = SourceFormat(source_format.upper())
         
         # Parse compression
-        compression_type = CompressionType(compression.upper())
+        compression_mapping = {
+            'none': CompressionType.NONE,
+            'zstd': CompressionType.ZSTD,
+            'lz4': CompressionType.LZ4
+        }
+        compression_type = compression_mapping.get(compression.lower())
+        if compression_type is None:
+            raise ValueError(f"Invalid compression type: {compression}. Valid options: none, zstd, lz4")
         
-        # Show progress with Rich
-        with rich.progress.Progress(
-            rich.progress.TextColumn("[progress.description]{task.description}"),
-            rich.progress.BarColumn(),
-            rich.progress.MofNCompleteColumn(),
-            rich.progress.TimeElapsedColumn(),
-            console=console
-        ) as progress:
-            
-            # Add progress tasks
-            main_task = progress.add_task("Preparing dataset...", total=5)
-            
-            def update_progress(phase: str, step: int, total: int):
-                progress.update(main_task, completed=step, description=f"{phase}...")
+        # Use DatasetPreparer as async context manager
+        async with DatasetPreparer(
+            s3_config=s3_config,
+            rdb_config=rdb_config
+        ) as preparer:
+            # Show progress with Rich
+            with rich.progress.Progress(
+                rich.progress.TextColumn("[progress.description]{task.description}"),
+                rich.progress.BarColumn(),
+                rich.progress.MofNCompleteColumn(),
+                rich.progress.TimeElapsedColumn(),
+                console=console
+            ) as progress:
                 
-            # Run preparation
-            result = await preparer.prepare_dataset(
-                dataset_name=dataset_name,
-                source_path=source_path,
-                source_format=source_fmt,
-                index_spec=index_spec,
-                subset_sizes=subset_sizes,
-                description=description,
-                compression=compression_type,
-                block_size=block_size,
-                overwrite=force,
-                progress_callback=update_progress
-            )
-            
-            progress.update(main_task, completed=5, description="Complete!")
+                # Add progress tasks
+                main_task = progress.add_task("Preparing dataset...", total=5)
+                
+                def update_progress(phase: str, step: int, total: int):
+                    progress.update(main_task, completed=step, description=f"{phase}...")
+                    
+                # Run preparation
+                result = await preparer.prepare_dataset(
+                    dataset_name=dataset_name,
+                    source_path=source_path,
+                    source_format=source_fmt,
+                    index_spec=index_spec,
+                    subset_sizes=subset_sizes,
+                    description=description,
+                    compression=compression_type,
+                    block_size=block_size,
+                    overwrite=force,
+                    progress_callback=update_progress
+                )
+                
+                progress.update(main_task, completed=5, description="Complete!")
         
         # Display results
         console.print(f"\n[green]✅ Dataset '{dataset_name}' prepared successfully![/green]")
