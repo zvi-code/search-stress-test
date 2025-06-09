@@ -29,4 +29,19 @@ htmlcov/
 *.hdf5
 output/
 logs/
+
+# Dataset files and directories
+datasets/*
+!datasets/.gitkeep
+!datasets/README.md
 *.csv
+*.tsv
+*.parquet
+*.npy
+*.npz
+*.vkv
+*.zip
+*.tar.gz
+*.bvecs
+*.fvecs
+*.ivecs

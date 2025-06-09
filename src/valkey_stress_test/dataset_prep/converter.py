@@ -356,15 +356,17 @@ class CSVConverter(BaseConverter):
             return False
             
         try:
-            # Try to read first few lines
-            with open(file_path, 'r') as f:
-                lines = [f.readline().strip() for _ in range(3)]
-                # Basic CSV validation - should have consistent comma count
-                if len(lines) < 2:
-                    return False
-                comma_counts = [line.count(',') for line in lines if line]
-                return len(set(comma_counts)) == 1  # All lines should have same comma count
-        except (OSError, UnicodeDecodeError):
+            # Use pandas to properly handle CSV parsing with quoted fields
+            if not HAS_PANDAS:
+                # Fallback to basic check
+                with open(file_path, 'r') as f:
+                    first_line = f.readline().strip()
+                    return ',' in first_line
+            
+            # Try to read first few rows with pandas
+            df = pd.read_csv(file_path, nrows=2)
+            return len(df) > 0 and len(df.columns) > 1
+        except (OSError, UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError):
             return False
     
     def get_metadata(self, file_path: Path) -> Dict[str, Any]:
@@ -379,19 +381,47 @@ class CSVConverter(BaseConverter):
         with open(file_path, 'r') as f:
             vector_count = sum(1 for line in f) - 1  # Subtract header
             
-        # Determine vector columns (assume all numeric columns except 'id', 'key', 'label')
-        exclude_cols = {'id', 'key', 'label', 'class', 'target'}
-        vector_cols = [col for col in sample_df.columns 
-                      if col.lower() not in exclude_cols and 
-                      pd.api.types.is_numeric_dtype(sample_df[col])]
+        # Determine vector columns - look for columns that might contain vector data
+        exclude_cols = {'id', 'key', 'label', 'class', 'target', 'url', 'title', 'text', 'vector_id'}
+        potential_vector_cols = [col for col in sample_df.columns 
+                                if col.lower() not in exclude_cols]
         
-        dimension = len(vector_cols)
+        # Check if columns contain vector data (lists as strings or numeric data)
+        vector_cols = []
+        dimensions = {}
+        
+        for col in potential_vector_cols:
+            sample_value = sample_df[col].iloc[0]
+            
+            # Check if it's a string that looks like a list
+            if isinstance(sample_value, str) and sample_value.strip().startswith('['):
+                try:
+                    # Try to parse as a Python list
+                    import ast
+                    parsed_list = ast.literal_eval(sample_value.strip())
+                    if isinstance(parsed_list, list) and len(parsed_list) > 0:
+                        vector_cols.append(col)
+                        dimensions[col] = len(parsed_list)
+                except (ValueError, SyntaxError):
+                    continue
+            # Check if it's numeric data
+            elif pd.api.types.is_numeric_dtype(sample_df[col]):
+                vector_cols.append(col)
+                dimensions[col] = 1  # Single value
+        
+        # If we found vector columns, use the first one for primary dimension
+        if vector_cols:
+            primary_vector_col = vector_cols[0]
+            dimension = dimensions[primary_vector_col]
+        else:
+            dimension = 0
         
         return {
             'vector_count': vector_count,
             'dimension': dimension,
-            'data_type': str(sample_df[vector_cols].dtypes.iloc[0]),
+            'data_type': 'float32',
             'vector_columns': vector_cols,
+            'vector_dimensions': dimensions,
             'all_columns': list(sample_df.columns),
             'file_size': file_path.stat().st_size
         }
@@ -404,9 +434,18 @@ class CSVConverter(BaseConverter):
             
         metadata = self.get_metadata(file_path)
         vector_cols = metadata['vector_columns']
+        vector_dimensions = metadata['vector_dimensions']
+        
+        if not vector_cols:
+            raise ValueError("No vector columns found in CSV")
+        
+        # Use the first vector column as primary (could be extended to handle multiple)
+        primary_col = vector_cols[0]
         
         # Stream in chunks to manage memory
         chunk_size = 1000
+        import ast
+        
         for chunk_idx, chunk in enumerate(pd.read_csv(file_path, chunksize=chunk_size)):
             for row_idx, row in chunk.iterrows():
                 # Use ID column if available, otherwise generate key
@@ -417,8 +456,25 @@ class CSVConverter(BaseConverter):
                 else:
                     global_idx = chunk_idx * chunk_size + (row_idx % chunk_size)
                     key = f"{key_prefix}:{global_idx}"
-                    
-                vector = row[vector_cols].values.astype(np.float32)
+                
+                # Parse vector data
+                vector_data = row[primary_col]
+                
+                if isinstance(vector_data, str) and vector_data.strip().startswith('['):
+                    # Parse string representation of list
+                    try:
+                        parsed_list = ast.literal_eval(vector_data.strip())
+                        vector = np.array(parsed_list, dtype=np.float32)
+                    except (ValueError, SyntaxError) as e:
+                        logger.warning(f"Failed to parse vector for key {key}: {e}")
+                        continue
+                else:
+                    # Handle numeric data
+                    if pd.isna(vector_data):
+                        logger.warning(f"NaN vector data for key {key}, skipping")
+                        continue
+                    vector = np.array([float(vector_data)], dtype=np.float32)
+                
                 yield key, vector
 
 
@@ -744,6 +800,47 @@ class DatasetConverter:
             'data_type': vkv_data_type.name,
             'file_size': output_path.stat().st_size
         }
+    
+    async def analyze_source_dataset(self, source_path: Path) -> Dict[str, Any]:
+        """Analyze source dataset and return summary information."""
+        source_path = Path(source_path)
+        
+        if not source_path.exists():
+            raise FileNotFoundError(f"Source file not found: {source_path}")
+        
+        # Auto-detect format
+        source_format = self.detect_format(source_path)
+        
+        # Get metadata from appropriate converter
+        converter = self.converters[source_format]
+        metadata = converter.get_metadata(source_path)
+        
+        # Calculate size estimates
+        file_size_mb = source_path.stat().st_size / (1024 * 1024)
+        
+        # Estimate memory requirements for processing
+        vector_count = metadata['vector_count']
+        dimension = metadata['dimension']
+        
+        # Rough estimates based on typical processing overhead
+        memory_per_vector_mb = (dimension * 4) / (1024 * 1024)  # 4 bytes per float32
+        processing_memory_mb = vector_count * memory_per_vector_mb * 2  # 2x for overhead
+        
+        analysis = {
+            'total_vectors': vector_count,
+            'dimensions': dimension,
+            'size_mb': file_size_mb,
+            'format': source_format.value,
+            'data_type': metadata.get('data_type', 'unknown'),
+            'estimated_processing_memory_mb': processing_memory_mb,
+            'vector_columns': metadata.get('vector_columns', []),
+            'all_columns': metadata.get('all_columns', [])
+        }
+        
+        logger.info(f"Dataset analysis: {vector_count:,} vectors ({dimension}D) "
+                   f"in {source_format.value} format, {file_size_mb:.1f} MB")
+        
+        return analysis
 
 
 class DatasetSplitter:

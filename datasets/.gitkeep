@@ -1,0 +1,8 @@
+# This file ensures the datasets directory exists in the repository
+# while keeping all dataset files ignored by git.
+#
+# Dataset files are typically large and should not be committed to git.
+# Instead, they should be:
+# - Downloaded using the provided scripts
+# - Stored locally for development and testing
+# - Uploaded to S3 or other cloud storage for distribution
