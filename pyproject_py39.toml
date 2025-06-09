@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "valkey-stress-test"
+version = "0.1.0"
+description = "Memory stress testing tool for Valkey-Search with vector operations"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "valkey_stress_test", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.20.0"  # Python 3.9 compatible
+redis = "^4.5.0"   # Lower version for 3.9 compatibility  
+psutil = "^5.9.0"
+prometheus-client = "^0.19.0"
+typer = "^0.7.0"   # Lower version for 3.9 compatibility
+pyyaml = "^6.0"
+h5py = "^3.7.0"    # Lower version for 3.9 compatibility
+aiofiles = "^22.0"  # Lower version for 3.9 compatibility
+pandas = "^1.5.0"   # Lower version for 3.9 compatibility
+rich = "^12.0.0"    # Lower version for 3.9 compatibility
+# Visualization dependencies (optional)
+matplotlib = {version = "^3.5.0", optional = true}  # Lower for 3.9
+plotly = {version = "^5.10.0", optional = true}     # Lower for 3.9
+seaborn = {version = "^0.11.0", optional = true}    # Lower for 3.9
+kaleido = {version = "^0.2.1", optional = true}
+
+[tool.poetry.extras]
+visualization = ["matplotlib", "plotly", "seaborn", "kaleido"]
+all = ["matplotlib", "plotly", "seaborn", "kaleido"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+pytest-asyncio = "^0.20.0"
+pytest-cov = "^4.0.0"
+black = "^22.0.0"
+ruff = "^0.1.0"
+mypy = "^1.0.0"
+
+[tool.poetry.scripts]
+vst = "valkey_stress_test.cli.main:app"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py39']  # Changed from py310
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W"]
+target-version = "py39"  # Changed from py310
+
+[tool.mypy]
+python_version = "3.9"  # Changed from 3.10
+warn_return_any = true
+warn_unused_configs = true
