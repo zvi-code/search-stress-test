@@ -22,16 +22,34 @@ A comprehensive memory stress testing tool for Valkey-Search with vector operati
 - [Datasets](#datasets)
 - [Examples](#examples)
 - [Development](#development)
+- [Quick Install Guide](QUICK_INSTALL.md)
 - [Detailed Installation Guide](INSTALL.md)
 
 ## Installation
 
 > **Note**: This package is currently in development and not yet published to PyPI. Install from source using the instructions below.
 
-### Quick Installation
+### System Requirements Check
+
+**Before installing**, run our system check to ensure compatibility:
 
 ```bash
 # 1. Clone the repository
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+
+# 2. Check your system requirements
+python3 setup_check.py
+```
+
+This will check your Python version (3.10+ required) and provide specific installation guidance for your system.
+
+### Quick Installation
+
+```bash
+# After confirming system compatibility:
+
+# 1. Clone the repository (if not already done)
 git clone https://github.com/your-org/valkey_stress_test.git
 cd valkey_stress_test
 
@@ -43,11 +61,39 @@ pip install -e .
 python verify_installation.py
 ```
 
+**For AWS EC2 (Amazon Linux):**
+```bash
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+./setup_ec2.sh  # Automated setup for Amazon Linux
+```
+
 ### Prerequisites
 
 - **Python 3.10 or higher** - Check with `python3 --version`
 - **Git** - For cloning the repository  
 - **Redis/Valkey instance** - With Search module enabled
+
+> **⚠️ Python Version Issue?** If you have Python < 3.10, see our [detailed installation guide](INSTALL.md) for upgrade solutions including pyenv, conda, and Docker options.
+
+### Troubleshooting Common Issues
+
+**Problem: `vst` command not found**
+```bash
+# Solution: Ensure package is installed in editable mode
+pip install -e .
+```
+
+**Problem: Python version < 3.10**
+```bash
+# Quick check
+python3 setup_check.py
+
+# Solutions provided based on your system
+```
+
+**Problem: Installation fails on AWS EC2/Cloud servers**
+- See [AWS EC2 Installation Guide](INSTALL.md#aws-ec2-installation) in our detailed installation guide
 
 ### Installation Options
 

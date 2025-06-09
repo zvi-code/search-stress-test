@@ -29,15 +29,33 @@ python verify_installation.py
 
 ### Option 2: AWS EC2 / Cloud Server Installation
 
-For AWS EC2 or other cloud servers:
+For AWS EC2 (Amazon Linux):
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+
+# 2. Run the automated EC2 setup script
+./setup_ec2.sh
+
+# The script will:
+# - Check your Python version
+# - Install Python 3.10+ if needed (via pyenv or compilation)
+# - Set up virtual environment
+# - Install all dependencies
+# - Verify the installation
+```
+
+**Manual installation for other cloud servers:**
 
 ```bash
 # 1. Update system packages
 sudo yum update -y  # Amazon Linux
 # or: sudo apt update && sudo apt upgrade -y  # Ubuntu
 
-# 2. Install Python 3.10+ and Git
-sudo yum install python3 python3-pip git -y  # Amazon Linux
+# 2. Install Python 3.10+ and Git (see Python upgrade section below)
+sudo yum install python3 python3-pip git -y  # Amazon Linux (may be Python 3.9)
 # or: sudo apt install python3 python3-pip python3-venv git -y  # Ubuntu
 
 # 3. Create working directory
@@ -114,11 +132,35 @@ sudo yum install epel-release
 sudo yum install python310 python310-pip git
 ```
 
-**Amazon Linux 2:**
+**Amazon Linux 2/2023:**
 ```bash
-# Install Python 3.10 from source or use amazon-linux-extras
-sudo amazon-linux-extras install python3.8
-# Then use pyenv for 3.10+ (see pyenv section below)
+# ⚠️  Amazon Linux typically comes with Python 3.9, but we need 3.10+
+
+# Option 1: Use the automated setup script (recommended)
+./setup_ec2.sh
+
+# Option 2: Manual installation with pyenv
+sudo yum groupinstall "Development Tools" -y
+sudo yum install git gcc openssl-devel libffi-devel bzip2-devel -y
+
+curl https://pyenv.run | bash
+echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+source ~/.bashrc
+
+pyenv install 3.10.14
+pyenv global 3.10.14
+
+# Option 3: Compile Python 3.10 from source
+sudo yum groupinstall "Development Tools" -y
+sudo yum install openssl-devel libffi-devel bzip2-devel -y
+
+wget https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tgz
+tar xvf Python-3.10.14.tgz
+cd Python-3.10.14
+./configure --enable-optimizations
+make altinstall
+# Then use python3.10 specifically
 ```
 
 **macOS:**
