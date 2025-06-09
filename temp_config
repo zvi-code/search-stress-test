@@ -1,0 +1,73 @@
+# Redis/Valkey connection settings
+redis:
+  db: 0
+  host: localhost
+  max_connections: 1000
+  port: 6379
+
+# Vector index configuration
+index:
+  algorithm: HNSW
+  dimensions: 1536
+  distance_metric: L2
+  ef_construction: 356
+  ef_runtime: 200
+  m: 16
+
+# Workload execution settings
+workload:
+  batch_size: 1000
+  n_clients: 1000
+  n_threads: 8
+  operation_timeout: 30.0
+  query_k: 10
+
+# Monitoring and metrics collection
+monitoring:
+  export_format: csv
+  memory_metrics:
+  - rss_mb
+  - active_mb
+  - resident_mb
+  - allocated_mb
+  - fragmentation_ratio
+  sampling_interval: 10.0
+
+# Output and logging settings
+output:
+  csv_path: output/metrics.csv
+  log_level: INFO
+  summary_path: output/summary.csv
+
+# S3 configuration for dataset storage
+s3:
+  access_key_id: null
+  bucket_name: vss-datasets
+  download_threads: 4
+  max_concurrency: 10
+  max_retries: 3
+  multipart_chunksize: 67108864
+  multipart_threshold: 67108864
+  region: us-east-1
+  retry_delay: 1.0
+  secret_access_key: null
+  session_token: null
+
+# Dataset preparation configuration
+dataset_prep:
+  batch_size: 1000
+  create_index_by_default: true
+  default_block_size: 1000
+  default_compression: zstd
+  default_distance_metric: COSINE
+  default_hnsw_ef_construction: 200
+  default_hnsw_m: 16
+  default_index_algorithm: HNSW
+  max_dataset_size_gb: 1000.0
+  max_vector_dimensions: 4096
+  memory_limit_gb: null
+  processing_timeout_minutes: 480
+  valkey_host: localhost
+  valkey_password: null
+  valkey_port: 6379
+

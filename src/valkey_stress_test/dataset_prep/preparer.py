@@ -74,17 +74,31 @@ class DatasetPreparer:
                             index_spec: Optional[IndexSpec] = None,
                             subset_sizes: Optional[List[int]] = None,
                             description: Optional[str] = None,
+                            overwrite: bool = False,
+                            progress_callback: Optional[callable] = None,
                             **kwargs) -> DatasetMetadata:
         """Complete dataset preparation pipeline."""
         self.logger.info(f"Starting dataset preparation for {dataset_name}")
         
         try:
+            # Check if dataset already exists and handle overwrite
+            if not overwrite:
+                existing_dataset = self.s3_manager.get_dataset_info(dataset_name)
+                if existing_dataset is not None:
+                    raise ValueError(f"Dataset '{dataset_name}' already exists. Use overwrite=True to replace it.")
+            
+            # Initialize progress tracking
+            if progress_callback:
+                progress_callback("Initializing", 0, 5)
+            
             # Validate inputs
             validation_result = self.validate_source_dataset(source_path, source_format)
             if not validation_result.get('valid', False):
                 raise ValueError(f"Source validation failed: {validation_result.get('error', 'Unknown error')}")
             
             # Phase 1: Convert source to VKV format
+            if progress_callback:
+                progress_callback("Converting to VKV format", 1, 5)
             phase_start = asyncio.get_event_loop().time()
             vkv_files = await self._convert_source_to_vkv(
                 source_path, dataset_name, source_format, **kwargs
@@ -92,6 +106,8 @@ class DatasetPreparer:
             self.stats['phases']['conversion'] = asyncio.get_event_loop().time() - phase_start
             
             # Phase 2: Generate RDB files
+            if progress_callback:
+                progress_callback("Generating RDB files", 2, 5)
             phase_start = asyncio.get_event_loop().time()
             rdb_files = await self._generate_rdb_files(
                 vkv_files, dataset_name, index_spec
@@ -99,6 +115,8 @@ class DatasetPreparer:
             self.stats['phases']['rdb_generation'] = asyncio.get_event_loop().time() - phase_start
             
             # Phase 3: Create subsets if requested
+            if progress_callback:
+                progress_callback("Creating subsets", 3, 5)
             phase_start = asyncio.get_event_loop().time()
             subset_info = await self._create_subsets(
                 vkv_files, dataset_name, subset_sizes, index_spec
@@ -106,6 +124,8 @@ class DatasetPreparer:
             self.stats['phases']['subset_creation'] = asyncio.get_event_loop().time() - phase_start
             
             # Phase 4: Upload to S3
+            if progress_callback:
+                progress_callback("Uploading to S3", 4, 5)
             phase_start = asyncio.get_event_loop().time()
             upload_results = await self._upload_to_s3(
                 dataset_name, vkv_files, rdb_files, subset_info
@@ -113,12 +133,17 @@ class DatasetPreparer:
             self.stats['phases']['s3_upload'] = asyncio.get_event_loop().time() - phase_start
             
             # Phase 5: Create and upload metadata
+            if progress_callback:
+                progress_callback("Creating metadata", 5, 5)
             phase_start = asyncio.get_event_loop().time()
             metadata = await self._create_metadata(
                 dataset_name, source_path, vkv_files, rdb_files, 
                 subset_info, upload_results, description
             )
             self.stats['phases']['metadata_creation'] = asyncio.get_event_loop().time() - phase_start
+            
+            if progress_callback:
+                progress_callback("Complete", 5, 5)
             
             self.logger.info(f"Dataset preparation completed for {dataset_name}")
             return metadata
@@ -156,7 +181,6 @@ class DatasetPreparer:
                 output_path=output_file,
                 dataset_name=dataset_name,
                 format_hint=source_format,
-                compression=CompressionType.ZSTD,
                 **kwargs
             )
             # The convert_to_vkv method returns metadata, not success/error structure

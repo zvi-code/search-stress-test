@@ -586,9 +586,9 @@ class DatasetConverter:
             with VKVWriter(
                 output_path, 
                 source_metadata['dimension'],
-                vkv_data_type,
-                compression,
-                block_size
+                data_type=vkv_data_type,
+                compression=compression,
+                block_size=block_size
             ) as writer:
                 
                 vector_stream = converter.stream_vectors(source_path, key_prefix)

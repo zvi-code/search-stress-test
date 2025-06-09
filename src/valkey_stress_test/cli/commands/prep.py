@@ -22,6 +22,7 @@ from ...dataset_prep.rdb_generator import RDBGenerationConfig
 from ...dataset_prep.rdb_generator import IndexSpec, IndexAlgorithm, MetricType
 from ...dataset_prep.converter import SourceFormat
 from ...dataset_prep.formats import CompressionType
+from ...core.config import Config
 
 
 # Create separate app for dataset preparation commands
@@ -91,8 +92,15 @@ def prepare_dataset(
         # Parse subset sizes
         subset_sizes_parsed = _parse_subset_sizes(subsets) if subsets else None
         
-        # Create configuration objects
-        s3_config = S3Config(bucket_name=s3_bucket, region=s3_region)
+        # Load configuration and get S3 config from it (includes env vars)
+        config = Config()
+        s3_config = config.get_s3_config()
+        
+        # Override S3 config with command line arguments if provided
+        if s3_bucket != "vss-datasets":  # If user provided different bucket
+            s3_config.bucket_name = s3_bucket
+        if s3_region != "us-east-1":  # If user provided different region
+            s3_config.region = s3_region
         rdb_config = RDBGenerationConfig(
             valkey_host=valkey_host,
             valkey_port=valkey_port,
@@ -402,7 +410,7 @@ async def _run_preparation(dataset_name: str, source_path: Path,
                 
                 def update_progress(phase: str, step: int, total: int):
                     progress.update(main_task, completed=step, description=f"{phase}...")
-                    
+  
                 # Run preparation
                 result = await preparer.prepare_dataset(
                     dataset_name=dataset_name,
@@ -412,9 +420,7 @@ async def _run_preparation(dataset_name: str, source_path: Path,
                     subset_sizes=subset_sizes,
                     description=description,
                     compression=compression_type,
-                    block_size=block_size,
-                    overwrite=force,
-                    progress_callback=update_progress
+                    block_size=block_size
                 )
                 
                 progress.update(main_task, completed=5, description="Complete!")
@@ -438,7 +444,7 @@ async def _list_s3_datasets(s3_config: S3Config, show_details: bool) -> List[Dic
     s3_manager = S3DatasetManager(s3_config)
     
     # List all datasets
-    datasets = await s3_manager.list_datasets()
+    datasets = s3_manager.list_datasets()
     
     if show_details:
         # Get detailed info for each dataset
@@ -646,18 +652,20 @@ async def _delete_dataset(s3_config: S3Config, dataset_name: str) -> Dict[str, A
     """Delete dataset from S3."""
     s3_manager = S3DatasetManager(s3_config)
     
-    # List all files for the dataset
-    files = await s3_manager.list_dataset_files(dataset_name)
+    try:
+        # Use the S3DatasetManager's delete_dataset method
+        success = await s3_manager.delete_dataset(dataset_name, confirm=True)
+        
+        if success:
+            # Count files that were deleted by listing what was there before
+            # Since they're already deleted, we'll return a success message
+            return {'files_deleted': 'all', 'success': True}
+        else:
+            return {'files_deleted': 0, 'success': False, 'error': 'Delete operation failed'}
     
-    deleted_count = 0
-    for file_key in files:
-        try:
-            await s3_manager.delete_file(file_key)
-            deleted_count += 1
-        except Exception as e:
-            console.print(f"[yellow]Warning: Failed to delete {file_key}: {e}[/yellow]")
-    
-    return {'files_deleted': deleted_count}
+    except Exception as e:
+        console.print(f"[red]Error during deletion: {e}[/red]")
+        return {'files_deleted': 0, 'success': False, 'error': str(e)}
 
 
 async def _estimate_preparation(source_path: Path, create_index: bool,
