@@ -23,6 +23,7 @@ app.add_typer(commands.run.app, name="run", help="Run stress test scenarios")
 app.add_typer(commands.dataset.app, name="dataset", help="Dataset management")
 app.add_typer(commands.validate.app, name="validate", help="Validate configurations")
 app.add_typer(commands.info.app, name="info", help="Display system information")
+app.add_typer(commands.visualize.app, name="visualize", help="Generate visualizations from scenario data")
 
 
 def _configure_logging(verbose: bool, quiet: bool) -> None:
