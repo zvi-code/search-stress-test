@@ -13,11 +13,50 @@ Before you begin, ensure you have:
 
 ## Step 1: Installation
 
-### Option A: Development Installation (Recommended)
+> **Important**: This package is currently in development and not published to PyPI. Follow the source installation steps below.
+
+### Option A: Simple pip Installation (Recommended)
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+
+# Install dependencies and package
+pip install -r requirements.txt
+pip install -e .
+
+# Verify installation
+vst --help
+```
+
+### Option B: With Virtual Environment (Safest)
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies and package
+pip install -r requirements.txt
+pip install -e .
+
+# Verify installation
+vst --help
+```
+
+### Option C: Using Poetry (For Developers)
+
+```bash
+# Install Poetry first (if not installed)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Clone and install
+git clone https://github.com/your-org/valkey_stress_test.git
 cd valkey_stress_test
 
 # Install with Poetry
@@ -25,14 +64,14 @@ poetry install
 
 # Activate the environment
 poetry shell
+
+# Verify installation
+vst --help
 ```
 
-### Option B: Direct Installation
+### Troubleshooting Installation
 
-```bash
-# Install from source
-pip install -e .
-```
+If you encounter issues, see the detailed **[Installation Guide](../INSTALL.md)** for comprehensive troubleshooting steps.
 
 ## Step 2: Start Redis/Valkey
 

@@ -22,37 +22,64 @@ A comprehensive memory stress testing tool for Valkey-Search with vector operati
 - [Datasets](#datasets)
 - [Examples](#examples)
 - [Development](#development)
+- [Detailed Installation Guide](INSTALL.md)
 
 ## Installation
 
-### Prerequisites
+> **Note**: This package is currently in development and not yet published to PyPI. Install from source using the instructions below.
 
-- Python 3.10 or higher
-- Valkey or Redis instance with Redis Search module
-- Poetry (for development installation)
-
-### Install from Source
+### Quick Installation
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# 1. Clone the repository
+git clone https://github.com/your-org/valkey_stress_test.git
 cd valkey_stress_test
 
-# Install with Poetry (recommended for development)
-poetry install
+# 2. Install dependencies and package
+pip install -r requirements.txt
+pip install -e .
 
-# Activate the virtual environment
-poetry shell
+# 3. Verify installation
+python verify_installation.py
+```
 
-# Or install with pip
+### Prerequisites
+
+- **Python 3.10 or higher** - Check with `python3 --version`
+- **Git** - For cloning the repository  
+- **Redis/Valkey instance** - With Search module enabled
+
+### Installation Options
+
+**Option 1: Using pip (Recommended for users)**
+```bash
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+pip install -r requirements.txt
 pip install -e .
 ```
 
-### Install from PyPI (when published)
-
+**Option 2: Using Poetry (For developers)**
 ```bash
-pip install valkey-stress-test
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+poetry install
+poetry shell
 ```
+
+**Option 3: With virtual environment (Recommended)**
+```bash
+git clone https://github.com/your-org/valkey_stress_test.git
+cd valkey_stress_test
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+```
+
+### Detailed Installation Guide
+
+For complete installation instructions including troubleshooting, see **[INSTALL.md](INSTALL.md)**.
 
 ## Quick Start
 

@@ -4,12 +4,13 @@ Welcome to the Valkey Memory Stress Testing Tool documentation!
 
 ## Getting Started
 
+- **[Installation Guide](../INSTALL.md)**: Complete installation instructions with troubleshooting
 - **[Getting Started Guide](GETTING_STARTED.md)**: Quick setup and first test
 - **[CLI Reference](CLI_REFERENCE.md)**: Complete command reference
 
 ## User Guides
 
-- **[Installation Guide](../README.md#installation)**: Detailed installation instructions
+- **[Installation Guide](../INSTALL.md)**: Detailed installation instructions and troubleshooting
 - **[Configuration Guide](CONFIGURATION.md)**: Complete configuration reference
 - **[Scenario Guide](SCENARIOS.md)**: Creating and managing test scenarios
 - **[Dataset Guide](DATASETS.md)**: Working with datasets and public data
@@ -28,7 +29,7 @@ Welcome to the Valkey Memory Stress Testing Tool documentation!
 ## Quick Links
 
 ### For Users
-1. [Install the tool](../README.md#installation)
+1. [Install the tool](../INSTALL.md)
 2. [Run your first test](GETTING_STARTED.md#step-4-run-your-first-test)
 3. [Create custom scenarios](GETTING_STARTED.md#step-6-try-a-custom-scenario)
 
