@@ -18,6 +18,11 @@ def check_python_version():
         return True
     else:
         print(f"✗ Python {version.major}.{version.minor}.{version.micro} - Requires Python 3.10+")
+        print("  Solutions:")
+        print("  1. Install Python 3.10+: see INSTALL.md for platform-specific instructions")
+        print("  2. Use pyenv: curl https://pyenv.run | bash && pyenv install 3.10.14")
+        print("  3. Use conda: conda create -n valkey-stress python=3.10")
+        print("  4. Use Docker: docker run -it python:3.10-slim")
         return False
 
 def check_package_installed():
@@ -135,8 +140,17 @@ def main():
         print("❌ SOME CHECKS FAILED!")
         print("\nTroubleshooting:")
         print("1. Check the installation guide: INSTALL.md")
-        print("2. Reinstall: pip install -r requirements.txt && pip install -e .")
-        print("3. Use virtual environment: python3 -m venv venv && source venv/bin/activate")
+        
+        # Check if Python version is the issue
+        if sys.version_info.minor < 10:
+            print("2. PYTHON VERSION ISSUE - Install Python 3.10+:")
+            print("   • Ubuntu: sudo apt install python3.10")
+            print("   • pyenv: pyenv install 3.10.14 && pyenv global 3.10.14")
+            print("   • conda: conda create -n valkey-stress python=3.10")
+            print("   • Docker: docker run -it python:3.10-slim")
+        else:
+            print("2. Reinstall: pip install -r requirements.txt && pip install -e .")
+            print("3. Use virtual environment: python3 -m venv venv && source venv/bin/activate")
         
     return 0 if all_passed else 1
 

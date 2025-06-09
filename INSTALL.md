@@ -84,17 +84,41 @@ vst --help
 
 ### Step 1: System Requirements
 
-**Ubuntu/Debian:**
+> **Important**: This package requires **Python 3.10 or higher**. Check your version with `python3 --version`.
+
+**Check Python Version:**
 ```bash
-sudo apt update
-sudo apt install python3 python3-pip python3-venv git
+python3 --version
+# If < 3.10, follow the upgrade instructions below
 ```
 
-**CentOS/RHEL:**
+**Ubuntu/Debian (Python 3.10+ installation):**
 ```bash
-sudo yum install python3 python3-pip git
-# or for newer versions:
-sudo dnf install python3 python3-pip git
+sudo apt update
+sudo apt install software-properties-common
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.10 python3.10-venv python3.10-pip git
+
+# Use python3.10 specifically
+python3.10 --version
+```
+
+**CentOS/RHEL (Python 3.10+ installation):**
+```bash
+# For RHEL 8/9 or CentOS Stream
+sudo dnf install python3.10 python3.10-pip git
+
+# For older versions, use EPEL or compile from source
+sudo yum install epel-release
+sudo yum install python310 python310-pip git
+```
+
+**Amazon Linux 2:**
+```bash
+# Install Python 3.10 from source or use amazon-linux-extras
+sudo amazon-linux-extras install python3.8
+# Then use pyenv for 3.10+ (see pyenv section below)
 ```
 
 **macOS:**
@@ -102,21 +126,97 @@ sudo dnf install python3 python3-pip git
 # Install Homebrew if not already installed
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Install Python and Git
+# Install Python 3.10+ and Git
+brew install python@3.10 git
+# or for latest Python:
 brew install python git
 ```
 
-### Step 2: Clone Repository
+### Step 2: Python Version Management
+
+If you have Python < 3.10, here are several options to get Python 3.10+:
+
+#### Option A: Using pyenv (Recommended for Multiple Python Versions)
+
+```bash
+# Install pyenv
+curl https://pyenv.run | bash
+
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+
+# Reload shell or restart terminal
+source ~/.bashrc
+
+# Install Python 3.10+
+pyenv install 3.10.14
+pyenv global 3.10.14
+
+# Verify version
+python --version
+```
+
+#### Option B: Using Conda/Miniconda
+
+```bash
+# Download and install Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Create environment with Python 3.10+
+conda create -n valkey-stress python=3.10
+conda activate valkey-stress
+
+# Verify version
+python --version
+```
+
+#### Option C: Using Docker (Alternative Approach)
+
+```bash
+# Run everything in a Docker container with Python 3.10+
+docker run -it --rm -v $(pwd):/workspace python:3.10-slim bash
+
+# Inside container:
+cd /workspace
+apt update && apt install git
+pip install -r requirements.txt
+pip install -e .
+python verify_installation.py
+```
+
+#### Option D: Deadsnakes PPA (Ubuntu/Debian)
+
+```bash
+# Add deadsnakes PPA for latest Python versions
+sudo apt update
+sudo apt install software-properties-common
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+
+# Install Python 3.10+
+sudo apt install python3.10 python3.10-venv python3.10-pip
+
+# Use python3.10 specifically
+python3.10 --version
+alias python3=python3.10  # Optional: set as default
+```
+
+### Step 3: Clone Repository
 
 ```bash
 git clone https://github.com/your-org/valkey_stress_test.git
 cd valkey_stress_test
 ```
 
-### Step 3: Create Virtual Environment (Recommended)
+### Step 4: Create Virtual Environment (Recommended)
 
 ```bash
-# Create virtual environment
+# Create virtual environment with Python 3.10+
+python3.10 -m venv venv
+# or if python3.10 is your default:
 python3 -m venv venv
 
 # Activate it
@@ -124,9 +224,12 @@ python3 -m venv venv
 source venv/bin/activate
 # On Windows:
 venv\Scripts\activate
+
+# Verify Python version in virtual environment
+python --version  # Should show 3.10+
 ```
 
-### Step 4: Install Dependencies
+### Step 5: Install Dependencies
 
 ```bash
 # Install core dependencies
@@ -139,7 +242,7 @@ pip install -r requirements-viz.txt
 pip install -r requirements-dev.txt
 ```
 
-### Step 5: Install the Package
+### Step 6: Install the Package
 
 ```bash
 # Install in development mode (recommended)
@@ -148,7 +251,7 @@ pip install -e .
 # This makes the 'vst' command available globally
 ```
 
-### Step 6: Verify Installation
+### Step 7: Verify Installation
 
 ```bash
 # Check if vst command is available
@@ -242,6 +345,15 @@ python3.10 -m venv venv
 
 # CentOS/RHEL: Install from EPEL or compile from source
 # macOS: Use Homebrew or pyenv
+
+# Or use pyenv (all platforms):
+curl https://pyenv.run | bash
+pyenv install 3.10.14
+pyenv global 3.10.14
+
+# Or use conda:
+conda create -n valkey-stress python=3.10
+conda activate valkey-stress
 ```
 
 **5. Redis connection issues**
