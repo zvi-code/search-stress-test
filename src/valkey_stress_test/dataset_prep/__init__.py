@@ -9,7 +9,8 @@ This module provides comprehensive dataset preparation capabilities including:
 - Metadata management and validation
 """
 
-from .formats import VKVFormat, DatasetConverter
+from .formats import VKVFormat
+from .converter import DatasetConverter
 from .rdb_generator import RDBGenerator, IndexSpec  
 from .s3_manager import S3DatasetManager, S3Config
 from .metadata import DatasetMetadata, VectorStats

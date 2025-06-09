@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This comprehensive guide covers all configuration options for the Valkey Memory Stress Testing tool, from basic settings to advanced tuning parameters.
+This comprehensive guide covers all configuration options for the Valkey Memory Stress Testing tool, including the new S3 dataset storage and dataset preparation features.
 
 ## Table of Contents
 
@@ -10,8 +10,11 @@ This comprehensive guide covers all configuration options for the Valkey Memory 
 - [Index Configuration](#index-configuration)
 - [Workload Configuration](#workload-configuration)
 - [Monitoring Configuration](#monitoring-configuration)
+- [S3 Configuration](#s3-configuration)
+- [Dataset Preparation Configuration](#dataset-preparation-configuration)
 - [Environment Variables](#environment-variables)
 - [Configuration Validation](#configuration-validation)
+- [Configuration Utilities](#configuration-utilities)
 - [Advanced Configuration](#advanced-configuration)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
@@ -24,13 +27,15 @@ The Valkey Memory Stress Testing tool uses YAML configuration files to define:
 - **Vector Index Parameters**: Algorithm, dimensions, distance metrics
 - **Workload Settings**: Concurrency, batch sizes, timeouts
 - **Monitoring Options**: Metrics collection, sampling intervals
-- **Dataset Configurations**: Data sources and processing options
+- **S3 Storage Settings**: Dataset storage and retrieval from AWS S3
+- **Dataset Preparation**: Converting and preparing vector datasets for testing
+- **Output Configuration**: Logging and metrics export options
 
 Configuration precedence (highest to lowest):
 1. Command-line arguments (`--config`, `--redis-host`, etc.)
-2. Environment variables (`VST_REDIS_HOST`, etc.)
+2. Environment variables (`VST_REDIS_HOST`, `AWS_S3_BUCKET`, etc.)
 3. Custom configuration file
-4. Default configuration (`config/default.yaml`)
+4. Default configuration values
 
 ## Configuration Files
 
@@ -384,6 +389,125 @@ monitoring:
   max_file_size_mb: 100   # Maximum output file size
 ```
 
+## S3 Configuration
+
+Configure AWS S3 for dataset storage and retrieval:
+
+### Basic S3 Settings
+
+```yaml
+s3:
+  bucket_name: "vss-datasets"      # S3 bucket name
+  region: "us-east-1"              # AWS region
+  
+  # AWS credentials (usually from environment/IAM)
+  access_key_id: null              # AWS access key ID
+  secret_access_key: null          # AWS secret access key
+  session_token: null              # AWS session token (for temporary credentials)
+```
+
+### Upload/Download Performance
+
+```yaml
+s3:
+  # Upload settings
+  multipart_threshold: 67108864    # 64MB - files larger use multipart upload
+  max_concurrency: 10              # Maximum concurrent uploads/downloads
+  multipart_chunksize: 67108864    # 64MB chunk size for multipart uploads
+  
+  # Download settings
+  download_threads: 4              # Number of download threads
+  
+  # Retry settings
+  max_retries: 3                   # Maximum retry attempts
+  retry_delay: 1.0                 # Delay between retries in seconds
+```
+
+### Advanced S3 Configuration
+
+```yaml
+s3:
+  # Advanced settings
+  use_ssl: true                    # Use HTTPS for S3 connections
+  endpoint_url: null               # Custom S3 endpoint (for S3-compatible services)
+  signature_version: "s3v4"        # AWS signature version
+  addressing_style: "auto"         # Bucket addressing style: auto, path, virtual
+  
+  # Transfer settings
+  use_accelerate_endpoint: false   # Use S3 Transfer Acceleration
+  use_dualstack_endpoint: false    # Use dual-stack (IPv4/IPv6) endpoint
+```
+
+## Dataset Preparation Configuration
+
+Configure dataset preparation and RDB generation:
+
+### Basic Dataset Preparation
+
+```yaml
+dataset_prep:
+  # Default processing settings
+  default_compression: "zstd"      # Compression: none, zstd, or lz4
+  default_block_size: 1000         # Default block size for streaming
+  
+  # Valkey connection for RDB generation
+  valkey_host: "localhost"         # Valkey host for RDB generation
+  valkey_port: 6379                # Valkey port for RDB generation
+  valkey_password: null            # Valkey password (if required)
+  batch_size: 1000                 # Batch size for dataset processing
+```
+
+### RDB Generation Settings
+
+```yaml
+dataset_prep:
+  # Memory management
+  memory_limit_gb: null            # Optional memory limit for RDB generation
+  memory_warning_threshold: 0.8    # Warning threshold (80% of limit)
+  gc_frequency: 1000               # Garbage collection frequency (batches)
+  
+  # RDB generation options
+  rdb_compression: true            # Enable RDB compression
+  rdb_checksum: true               # Enable RDB checksums
+  save_policy: "auto"              # RDB save policy: auto, manual, disabled
+```
+
+### Index Creation Defaults
+
+```yaml
+dataset_prep:
+  # Index creation settings
+  create_index_by_default: true    # Whether to create indexes by default
+  default_index_algorithm: "HNSW"  # Default index algorithm: HNSW or FLAT
+  default_distance_metric: "COSINE" # Default distance metric: L2, IP, or COSINE
+  default_hnsw_m: 16               # Default HNSW M parameter (1-512)
+  default_hnsw_ef_construction: 200 # Default HNSW ef_construction (1-4096)
+  
+  # Index optimization
+  index_parallel_creation: true    # Create indexes in parallel
+  index_creation_timeout: 300      # Index creation timeout (seconds)
+```
+
+### Processing Limits and Timeouts
+
+```yaml
+dataset_prep:
+  # Processing limits
+  max_vector_dimensions: 4096      # Maximum supported vector dimensions
+  max_dataset_size_gb: 1000.0      # Maximum dataset size in GB
+  max_file_count: 10000            # Maximum number of files per dataset
+  
+  # Timeouts
+  processing_timeout_minutes: 480  # Processing timeout (8 hours)
+  upload_timeout_minutes: 120      # S3 upload timeout (2 hours)
+  download_timeout_minutes: 60     # S3 download timeout (1 hour)
+  
+  # Resource limits
+  max_cpu_cores: null              # Maximum CPU cores to use (null = auto)
+  temp_dir: "/tmp/vst"             # Temporary directory for processing
+  cleanup_temp_files: true         # Clean up temporary files after processing
+```
+
 ## Environment Variables
 
 Override configuration values using environment variables:
@@ -415,6 +539,40 @@ export VST_WORKLOAD_BATCH_SIZE=1000
 export VST_WORKLOAD_TIMEOUT=60
 ```
 
+### S3 Configuration
+```bash
+# AWS credentials
+export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+export AWS_SESSION_TOKEN=your_session_token
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_S3_BUCKET=your-vss-datasets-bucket
+
+# S3 performance settings
+export VST_S3_MULTIPART_THRESHOLD=67108864     # 64MB
+export VST_S3_MAX_CONCURRENCY=10
+export VST_S3_DOWNLOAD_THREADS=4
+export VST_S3_MAX_RETRIES=3
+```
+
+### Dataset Preparation
+```bash
+# Valkey connection for RDB generation
+export VST_VALKEY_HOST=localhost
+export VST_VALKEY_PORT=6379
+export VST_VALKEY_PASSWORD=your_valkey_password
+
+# Processing settings
+export VST_MEMORY_LIMIT_GB=32.0
+export VST_DEFAULT_COMPRESSION=zstd
+export VST_DATASET_BATCH_SIZE=1000
+export VST_PROCESSING_TIMEOUT_MINUTES=480
+
+# Output and logging
+export VST_OUTPUT_DIR=/path/to/output
+export VST_LOG_LEVEL=INFO
+```
+
 ### Using Environment Variables in Config Files
 
 ```yaml
@@ -422,10 +580,104 @@ redis:
   host: "${VST_REDIS_HOST:-localhost}"
   port: "${VST_REDIS_PORT:-6379}"
   password: "${VST_REDIS_PASSWORD}"
+
+s3:
+  bucket_name: "${AWS_S3_BUCKET:-vss-datasets}"
+  region: "${AWS_DEFAULT_REGION:-us-east-1}"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+dataset_prep:
+  valkey_host: "${VST_VALKEY_HOST:-localhost}"
+  valkey_port: "${VST_VALKEY_PORT:-6379}"
+  memory_limit_gb: "${VST_MEMORY_LIMIT_GB}"
   
 workload:
   n_threads: "${VST_WORKLOAD_THREADS:-8}"
   batch_size: "${VST_WORKLOAD_BATCH_SIZE:-1000}"
+```
+
+## Configuration Utilities
+
+The Valkey Stress Test framework includes a powerful configuration utility script to help manage and validate configurations.
+
+### Using the Configuration Utility
+
+```bash
+# Show current configuration (with defaults and environment variables)
+python scripts/config_util.py info
+
+# Show configuration from a specific file
+python scripts/config_util.py info --config config/production.yaml
+
+# Validate a configuration file
+python scripts/config_util.py validate config/my_config.yaml
+
+# Generate an example configuration file
+python scripts/config_util.py generate config/example.yaml
+
+# Show all available environment variables
+python scripts/config_util.py env-vars
+```
+
+### Configuration Information Display
+
+The `info` command provides a comprehensive overview of the current configuration:
+
+```bash
+$ python scripts/config_util.py info
+Current Configuration:
+==================================================
+Redis/Valkey:
+  Host: localhost:6379
+  Database: 0
+  Max Connections: 1000
+
+Vector Index:
+  Algorithm: HNSW
+  Dimensions: 1536
+  Distance Metric: COSINE
+  M: 16
+  EF Construction: 356
+  EF Runtime: 200
+
+S3 Storage:
+  Bucket: vss-datasets
+  Region: us-east-1
+  Multipart Threshold: 64MB
+  Max Concurrency: 10
+  Download Threads: 4
+
+Dataset Preparation:
+  Default Compression: zstd
+  Valkey Host: localhost:6379
+  Batch Size: 1000
+  Max Vector Dimensions: 4096
+  Max Dataset Size: 1000.0GB
+  Processing Timeout: 480 minutes
+```
+
+### Configuration Validation
+
+The `validate` command checks configuration files for errors:
+
+```bash
+$ python scripts/config_util.py validate config/production.yaml
+✓ Configuration file 'config/production.yaml' is valid
+
+$ python scripts/config_util.py validate config/invalid.yaml
+✗ Configuration file 'config/invalid.yaml' is invalid: S3 bucket name cannot be empty
+```
+
+### Generating Example Configurations
+
+Create template configuration files:
+
+```bash
+# Generate a complete example configuration
+python scripts/config_util.py generate config/my_example.yaml
+
+# The generated file includes all sections with default values and comments
 ```
 
 ## Configuration Validation

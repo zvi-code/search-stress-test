@@ -19,8 +19,9 @@ import re
 from ...dataset_prep.preparer import DatasetPreparer
 from ...dataset_prep.s3_manager import S3DatasetManager, S3Config
 from ...dataset_prep.rdb_generator import RDBGenerationConfig
-from ...dataset_prep.metadata import IndexSpec, IndexAlgorithm, MetricType
-from ...dataset_prep.formats import SourceFormat, CompressionType
+from ...dataset_prep.rdb_generator import IndexSpec, IndexAlgorithm, MetricType
+from ...dataset_prep.converter import SourceFormat
+from ...dataset_prep.formats import CompressionType
 
 
 # Create separate app for dataset preparation commands
